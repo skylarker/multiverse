@@ -1,169 +1,28 @@
 apply plugin: 'java'
 apply plugin: 'eclipse'
-apply plugin: 'maven-publish'
 apply plugin: 'idea'
-apply plugin: 'com.github.johnrengelman.shadow'
-
-ext.versionFile = file('version.properties')
-
-sourceCompatibility = 1.7
-targetCompatibility = 1.7
 
 
-import com.amazonaws.services.s3.AmazonS3Client
-import com.amazonaws.services.s3.model.PutObjectRequest
-import com.amazonaws.services.s3.transfer.TransferManager
-import com.amazonaws.services.s3.transfer.Upload
-
-buildscript {
-    repositories {
-        mavenCentral()
-        jcenter()
-    }
-
-    dependencies {
-        classpath 'com.amazonaws:aws-java-sdk:1+'
-        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.0'
-        classpath "net.saliman:gradle-cobertura-plugin:2.2.4"
-    }
-}
-
-dependencies {
-    compile group: 'commons-collections', name: 'commons-collections', version: '3.2'
-    testCompile group: 'junit', name: 'junit', version: '4.+'
-    compile 'commons-cli:commons-cli:1.2'
-    compile 'org.apache.commons:commons-lang3:3.3.2'
-    compile 'com.google.code.gson:gson:2.3'
-    compile 'net.sf.opencsv:opencsv:2.3'
-    compile 'log4j:log4j:1.2.17'
-    compile 'commons-io:commons-io:2.4'
-    compile 'net.sf.opencsv:opencsv:2.3'
-    compile group: 'com.google.guava', name: 'guava', version: '12.0.1'
-
-}
-
-test {
-    systemProperties 'property': 'value'
-}
-
-uploadArchives {
-    repositories {
-       flatDir {
-           dirs 'repos'
-       }
-    }
+task initSourceFolders { // add << before { to prevent executing during configuration phase
+    sourceSets*.java.srcDirs*.each { it.mkdirs() }
+    sourceSets*.resources.srcDirs*.each { it.mkdirs() }
 }
 
 task wrapper(type: Wrapper) {
     gradleVersion = '2.0'
 }
 
-shadowJar {
-    manifest { attributes 'Main-Class': 'com.multiverse.Main' }
-    classifier = ''
-}
-
-jar {
-    project.version = readVersion()
-    manifest {
-        attributes 'Implementation-Title': 'Gradle Quickstart', 'Implementation-Version': project.version
-    }
-}
-
 repositories {
     mavenCentral()
 }
 
-task bumpMajorVersion(group: 'versioning', description: 'Increments project major version.') << {
-    String currentVersion = version.toString()
-    ++version.major
-    String newVersion = version.toString()
-    logger.info "Incrementing major project version: $currentVersion -> $newVersion"
-
-    ant.propertyfile(file: versionFile) {
-        entry(key: 'major', type: 'int', operation: '+', value: 1)
-        entry(key: 'minor', type: 'int', operation: '=', value: 0)
-        entry(key: 'hotfix', type: 'int', operation: '=', value: 0)
-    }
-
-    project.version = readVersion()
-    printGitReleaseSteps(currentVersion)
+dependencies {
+    compile 'org.apache.commons:commons-lang3:3.3.2'
+    compile 'com.google.code.gson:gson:2.3'
+    compile group: 'com.google.guava', name: 'guava', version: '12.0.1'
 }
 
-task bumpMinorVersion(group: 'versioning', description: 'Increments project minor version.') << {
-    String currentVersion = version.toString()
-    ++version.minor
-    String newVersion = version.toString()
-    logger.info "Incrementing minor project version: $currentVersion -> $newVersion"
-
-    ant.propertyfile(file: versionFile) {
-        entry(key: 'minor', type: 'int', operation: '+', value: 1)
-        entry(key: 'hotfix', type: 'int', operation: '=', value: 0)
-    }
-
-    project.version = readVersion()
-    printGitReleaseSteps(currentVersion)
+test {
+    systemProperties 'property': 'value'
 }
 
-task bumpHotfixVersion(group: 'versioning', description: 'Increments project hotfix version.') << {
-    String currentVersion = version.toString()
-    ++version.major
-    String newVersion = version.toString()
-    logger.info "Incrementing hotfix project version: $currentVersion -> $newVersion"
-
-    ant.propertyfile(file: versionFile) {
-        entry(key: 'hotfix', type: 'int', operation: '+', value: 1)
-    }
-
-    project.version = readVersion()
-    printGitReleaseSteps(currentVersion)
-}
-
-void printGitReleaseSteps(String version) {
-    println('Next Steps:')
-    println('Old version = ' + version)
-    println('New version = ' + project.version)
-}
-
-ProjectVersion readVersion() {
-    logger.quiet 'Reading the version file.'
-
-    if (!versionFile.exists()) {
-        throw new GradleException("Required version file does not exit: $versionFile.canonicalPath")
-    }
-
-    Properties versionProps = new Properties()
-
-    versionFile.withInputStream { stream ->
-        versionProps.load(stream)
-    }
-
-    new ProjectVersion(versionProps.major.toInteger(), versionProps.minor.toInteger(), versionProps.hotfix.toInteger())
-}
-
-class ProjectVersion {
-    Integer major
-    Integer minor
-    Integer hotfix
-
-    ProjectVersion(Integer major, Integer minor) {
-        this.major = major
-        this.minor = minor
-        this.hotfix = 0
-    }
-
-    ProjectVersion(Integer major, Integer minor, Integer hotfix) {
-        this(major, minor)
-        this.hotfix = hotfix
-    }
-
-    @Override
-    String toString() {
-        "$major.$minor.$hotfix"
-    }
-}
-
-
-clean.doFirst {
-  delete('target/')
-}
